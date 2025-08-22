@@ -23,9 +23,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# =========================
-# Carga de credenciales (antes de inicializar LLM)
-# =========================
+
 try:
     if "OPENAI_API_KEY" in st.secrets:
         os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
@@ -101,15 +99,44 @@ def get_embeddings():
         encode_kwargs={"normalize_embeddings": True}
     )
 
-# --- LLM: OpenAI ---
 @st.cache_resource
 def get_llm():
-    api_key = os.getenv("OPENAI_API_KEY")
+    api_key = None
+    model = "gpt-4o-mini"
+    
+    try:
+        if 'openai' in st.secrets and 'api_key' in st.secrets['openai']:
+            api_key = st.secrets['openai']['api_key']
+            if 'general' in st.secrets and 'model' in st.secrets['general']:
+                model = st.secrets['general']['model']
+    except:
+        pass
+    
     if not api_key:
-        st.error("Falta OPENAI_API_KEY en el entorno (.env o secrets).")
+        api_key = os.getenv("OPENAI_API_KEY")
+        model = os.getenv("OPENAI_MODEL", model)
+    
+    if not api_key:
+        st.error("🚫 API KEY REQUERIDA")
         st.stop()
-    model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-    return ChatOpenAI(model=model, temperature=0.2, max_retries=2, timeout=60)
+
+    try:
+        return ChatOpenAI(
+            model=model,
+            temperature=0.2,
+            openai_api_key=api_key
+        )
+    except Exception as e:
+        st.warning(f"Configuración estándar falló: {e}. Intentando configuración mínima...")
+        try:
+            return ChatOpenAI(
+                model=model,
+                openai_api_key=api_key
+            )
+        except Exception as e2:
+            st.error(f"Error crítico inicializando ChatOpenAI: {e2}")
+            st.info("Probable conflicto de versiones. Ejecuta: pip install langchain-openai==0.1.0 openai==1.12.0")
+            st.stop()
 
 @st.cache_resource(show_spinner=False)
 def get_index_executor():

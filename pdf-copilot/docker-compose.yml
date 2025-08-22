@@ -1,10 +1,36 @@
 services:
   web:
     build: .
+    container_name: pdf-copilot-app
     ports:
       - "8501:8501"
-    env_file:
-      - .env
+    environment:
+      # Variables de OpenAI
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_API_BASE=${OPENAI_API_BASE:-https://api.openai.com/v1}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-3.5-turbo}
+      # Variables de Streamlit
+      - STREAMLIT_SERVER_ADDRESS=0.0.0.0
+      - STREAMLIT_SERVER_PORT=8501
     volumes:
-      - ./chroma_db:/app/chroma_db
+      # Volumen persistente para ChromaDB
+      - chroma_data:/app/chroma_db
+      # Montar configuración de Streamlit si existe
+      - ./.streamlit:/app/.streamlit:ro
     restart: unless-stopped
+    networks:
+      - pdf-copilot-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  chroma_data:
+    driver: local
+
+networks:
+  pdf-copilot-network:
+    driver: bridge
